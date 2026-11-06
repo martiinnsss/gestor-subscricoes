@@ -1,0 +1,5 @@
+# Cópias de segurança com dados pessoais
+subscricoes-*.json
+
+# Ficheiros da app Claude
+Claude outputs/

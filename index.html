@@ -1,0 +1,219 @@
+<!DOCTYPE html>
+<html lang="pt">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Subscrições</title>
+<style>
+  :root { --fundo:#0f1115; --cartao:#181b21; --linha:#2a2f38; --texto:#eef0f3; --suave:#8b93a1;
+          --acento:#6ea8fe; --alerta:#f0a35e; --perigo:#e5676b; }
+  * { box-sizing:border-box; }
+  body { margin:0; font-family: system-ui, -apple-system, "Segoe UI", sans-serif; background:var(--fundo);
+         color:var(--texto); line-height:1.45; }
+  main { max-width: 820px; margin:0 auto; padding: 2rem 1.25rem 4rem; }
+  h1 { margin:0 0 1.5rem; font-size:1.6rem; }
+  .cartao { background:var(--cartao); border:1px solid var(--linha); border-radius:14px; padding:1.25rem; margin-bottom:1rem; }
+  .numeros { display:grid; grid-template-columns: repeat(3,1fr); gap:1rem; text-align:center; }
+  .numeros b { display:block; font-size:1.7rem; font-variant-numeric: tabular-nums; }
+  .numeros span { color:var(--suave); font-size:.85rem; }
+  form { display:grid; grid-template-columns: 2fr 1fr 1fr 1.3fr 1.3fr auto; gap:.5rem; align-items:end; }
+  label { font-size:.75rem; color:var(--suave); display:block; margin-bottom:.25rem; }
+  input, select { width:100%; padding:.6rem .65rem; border-radius:8px; border:1px solid var(--linha);
+                  background:var(--fundo); color:var(--texto); font-size:.95rem; }
+  button { padding:.62rem 1rem; border:0; border-radius:8px; background:var(--acento); color:#0b1220;
+           font-weight:600; cursor:pointer; font-size:.95rem; }
+  button.leve { background:transparent; color:var(--suave); border:1px solid var(--linha); font-weight:500; }
+  button.icone { background:transparent; color:var(--suave); padding:.3rem .5rem; }
+  button.icone:hover { color:var(--texto); }
+  @media (max-width: 720px) { form { grid-template-columns: 1fr 1fr; } form .largo { grid-column: 1 / -1; } }
+  table { width:100%; border-collapse:collapse; }
+  th, td { padding:.65rem .4rem; border-bottom:1px solid var(--linha); text-align:left; }
+  th { color:var(--suave); font-weight:500; font-size:.75rem; text-transform:uppercase; letter-spacing:.04em; }
+  td.num, th.num { text-align:right; font-variant-numeric: tabular-nums; }
+  tr:last-child td { border-bottom:0; }
+  .tag { font-size:.75rem; color:var(--suave); }
+  .breve { color:var(--alerta); font-weight:600; }
+  .hoje { color:var(--perigo); font-weight:600; }
+  .avisos div { padding:.6rem .8rem; border-radius:8px; background:#2b2116; border:1px solid #5a4126; margin-bottom:.5rem; }
+  .barras div { display:grid; grid-template-columns: 120px 1fr 80px; gap:.6rem; align-items:center; margin:.35rem 0; font-size:.9rem; }
+  .barras i { display:block; height:10px; border-radius:5px; background:var(--acento); }
+  .barras em { font-style:normal; text-align:right; color:var(--suave); font-variant-numeric: tabular-nums; }
+  .rodape { display:flex; gap:.5rem; flex-wrap:wrap; justify-content:flex-end; }
+  .vazio { color:var(--suave); text-align:center; padding:1.5rem 0; }
+  .tabela { overflow-x:auto; }
+</style>
+</head>
+<body>
+<main>
+  <h1>As minhas subscrições</h1>
+
+  <div class="cartao numeros">
+    <div><b id="mensal">0 €</b><span>por mês</span></div>
+    <div><b id="anual">0 €</b><span>por ano</span></div>
+    <div><b id="quantas">0</b><span>subscrições</span></div>
+  </div>
+
+  <div class="avisos" id="avisos"></div>
+
+  <div class="cartao">
+    <form id="form">
+      <div class="largo"><label>Nome</label><input name="nome" placeholder="Spotify" required></div>
+      <div><label>Preço (€)</label><input name="preco" type="number" step="0.01" min="0" placeholder="10,99" required></div>
+      <div><label>Paga-se</label>
+        <select name="periodo"><option value="mensal">Mensal</option><option value="anual">Anual</option><option value="semanal">Semanal</option></select></div>
+      <div><label>Próxima renovação</label><input name="renovacao" type="date" required></div>
+      <div><label>Categoria</label>
+        <select name="categoria">
+          <option>Streaming</option><option>Música</option><option>Jogos</option><option>Software</option>
+          <option>Desporto</option><option>Telemóvel/Net</option><option>Outros</option>
+        </select></div>
+      <div><button id="botao">Adicionar</button></div>
+    </form>
+  </div>
+
+  <div class="cartao tabela">
+    <table>
+      <thead><tr><th>Subscrição</th><th class="num">Preço</th><th class="num">Por mês</th><th>Renova</th><th></th></tr></thead>
+      <tbody id="lista"></tbody>
+    </table>
+  </div>
+
+  <div class="cartao">
+    <div class="tag" style="margin-bottom:.5rem">GASTO MENSAL POR CATEGORIA</div>
+    <div class="barras" id="barras"></div>
+  </div>
+
+  <div class="rodape">
+    <button class="leve" id="exportar">Guardar cópia de segurança</button>
+    <button class="leve" id="importar">Recuperar cópia</button>
+    <input type="file" id="ficheiro" accept=".json" hidden>
+  </div>
+</main>
+
+<script>
+const CHAVE = "subscricoes-v1";
+const POR_MES = { mensal: 1, anual: 1 / 12, semanal: 52 / 12 };
+const euro = v => v.toLocaleString("pt-PT", { style: "currency", currency: "EUR" });
+let subs = carregar();
+let aEditar = null;
+
+function carregar() {
+  try { return JSON.parse(localStorage.getItem(CHAVE)) || []; } catch { return []; }
+}
+function guardar() {
+  try { localStorage.setItem(CHAVE, JSON.stringify(subs)); } catch {}
+}
+const hojeISO = () => { const d = new Date(); return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-${String(d.getDate()).padStart(2, "0")}`; };
+function diasAte(iso) {
+  const [a, m, d] = iso.split("-").map(Number);
+  const alvo = new Date(a, m - 1, d), hoje = new Date(); hoje.setHours(0, 0, 0, 0);
+  return Math.round((alvo - hoje) / 864e5);
+}
+// se a data de renovação já passou, avança-a para o próximo ciclo
+function avancarDatas() {
+  const hoje = hojeISO();
+  for (const s of subs) {
+    let d = new Date(s.renovacao + "T12:00:00");
+    while (d.toISOString().slice(0, 10) < hoje) {
+      if (s.periodo === "mensal") d.setMonth(d.getMonth() + 1);
+      else if (s.periodo === "anual") d.setFullYear(d.getFullYear() + 1);
+      else d.setDate(d.getDate() + 7);
+    }
+    s.renovacao = d.toISOString().slice(0, 10);
+  }
+}
+const mensal = s => s.preco * POR_MES[s.periodo];
+const esc = t => String(t).replace(/[&<>"']/g, c => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[c]));
+
+function desenhar() {
+  avancarDatas(); guardar();
+  subs.sort((a, b) => a.renovacao.localeCompare(b.renovacao));
+
+  const totalMes = subs.reduce((t, s) => t + mensal(s), 0);
+  document.getElementById("mensal").textContent = euro(totalMes);
+  document.getElementById("anual").textContent = euro(totalMes * 12);
+  document.getElementById("quantas").textContent = subs.length;
+
+  const proximas = subs.filter(s => diasAte(s.renovacao) <= 3);
+  document.getElementById("avisos").innerHTML = proximas.map(s => {
+    const d = diasAte(s.renovacao);
+    const quando = d === 0 ? "hoje" : d === 1 ? "amanhã" : `daqui a ${d} dias`;
+    return `<div>⏰ <b>${esc(s.nome)}</b> renova ${quando} — ${euro(s.preco)}</div>`;
+  }).join("");
+
+  const tbody = document.getElementById("lista");
+  if (!subs.length) {
+    tbody.innerHTML = `<tr><td colspan="5" class="vazio">Ainda não tens subscrições. Adiciona a primeira acima.</td></tr>`;
+  } else {
+    tbody.innerHTML = subs.map((s, i) => {
+      const d = diasAte(s.renovacao);
+      const classe = d === 0 ? "hoje" : d <= 7 ? "breve" : "";
+      const data = s.renovacao.split("-").reverse().join("/");
+      return `<tr>
+        <td>${esc(s.nome)}<br><span class="tag">${esc(s.categoria)} · ${s.periodo}</span></td>
+        <td class="num">${euro(s.preco)}</td>
+        <td class="num">${euro(mensal(s))}</td>
+        <td class="${classe}">${data}<br><span class="tag">${d === 0 ? "hoje" : d === 1 ? "amanhã" : d + " dias"}</span></td>
+        <td style="white-space:nowrap">
+          <button class="icone" title="Editar" onclick="editar(${i})">✎</button>
+          <button class="icone" title="Apagar" onclick="apagar(${i})">✕</button>
+        </td></tr>`;
+    }).join("");
+  }
+
+  const porCat = {};
+  for (const s of subs) porCat[s.categoria] = (porCat[s.categoria] || 0) + mensal(s);
+  const max = Math.max(...Object.values(porCat), 0);
+  document.getElementById("barras").innerHTML = Object.entries(porCat)
+    .sort((a, b) => b[1] - a[1])
+    .map(([c, v]) => `<div><span>${esc(c)}</span><i style="width:${(v / max) * 100}%"></i><em>${euro(v)}</em></div>`)
+    .join("") || `<span class="tag">Sem dados ainda.</span>`;
+}
+
+const form = document.getElementById("form");
+form.renovacao.value = hojeISO();
+form.addEventListener("submit", e => {
+  e.preventDefault();
+  const s = {
+    nome: form.nome.value.trim(),
+    preco: parseFloat(String(form.preco.value).replace(",", ".")),
+    periodo: form.periodo.value,
+    renovacao: form.renovacao.value,
+    categoria: form.categoria.value,
+  };
+  if (!s.nome || isNaN(s.preco)) return;
+  if (aEditar !== null) { subs[aEditar] = s; aEditar = null; document.getElementById("botao").textContent = "Adicionar"; }
+  else subs.push(s);
+  form.reset(); form.renovacao.value = hojeISO();
+  desenhar();
+});
+
+function editar(i) {
+  const s = subs[i]; aEditar = i;
+  for (const k of ["nome", "preco", "periodo", "renovacao", "categoria"]) form[k].value = s[k];
+  document.getElementById("botao").textContent = "Guardar";
+  form.nome.focus();
+}
+function apagar(i) {
+  if (confirm(`Apagar ${subs[i].nome}?`)) { subs.splice(i, 1); aEditar = null; desenhar(); }
+}
+
+document.getElementById("exportar").onclick = () => {
+  const blob = new Blob([JSON.stringify(subs, null, 2)], { type: "application/json" });
+  const a = document.createElement("a");
+  a.href = URL.createObjectURL(blob); a.download = `subscricoes-${hojeISO()}.json`; a.click();
+};
+document.getElementById("importar").onclick = () => document.getElementById("ficheiro").click();
+document.getElementById("ficheiro").onchange = async e => {
+  try {
+    const dados = JSON.parse(await e.target.files[0].text());
+    if (!Array.isArray(dados)) throw 0;
+    if (confirm(`Substituir as subscrições atuais por ${dados.length} da cópia?`)) { subs = dados; desenhar(); }
+  } catch { alert("Esse ficheiro não é uma cópia válida."); }
+  e.target.value = "";
+};
+
+desenhar();
+</script>
+</body>
+</html>
